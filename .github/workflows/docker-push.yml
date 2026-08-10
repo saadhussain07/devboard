@@ -28,4 +28,81 @@ jobs:
                 context: ./${{ matrix.folders}}
                 push: true
                 tags: ${{ vars.DOCKERHUB_USERNAME }}/devboard-${{ matrix.folders}}:latest
-                
+                # Goal: Push the images to DockerHub, signed, with an SBOM attached
+#
+# CHANGED from original:
+#   - tag is now ${{ github.sha }}, not :latest — Kyverno's disallow-latest
+#     policy and the whole "immutable, traceable deploy" story depend on this
+#   - still also pushes :latest as a convenience tag (docker-compose based
+#     local dev keeps working), but the SHA tag is what actually gets
+#     deployed/signed/verified
+#   - added cosign keyless signing (auth via GitHub's OIDC token, no key
+#     management) and a syft-generated SBOM attested to the image itself
+name: Docker Push
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write # required for cosign keyless signing
+
+jobs:
+  build-push-sign:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        folders: ['backend', 'frontend']
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Docker Setup [Login]
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker Build and Push
+        uses: docker/build-push-action@v7
+        id: push
+        with:
+          context: ./${{ matrix.folders }}
+          push: true
+          tags: |
+            ${{ vars.DOCKERHUB_USERNAME }}/devboard-${{ matrix.folders }}:${{ github.sha }}
+            ${{ vars.DOCKERHUB_USERNAME }}/devboard-${{ matrix.folders }}:latest
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image (keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes \
+            "${{ vars.DOCKERHUB_USERNAME }}/devboard-${{ matrix.folders }}@${{ steps.push.outputs.digest }}"
+
+      - name: Install syft
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM
+        run: |
+          syft "${{ vars.DOCKERHUB_USERNAME }}/devboard-${{ matrix.folders }}:${{ github.sha }}" \
+            -o spdx-json=sbom-${{ matrix.folders }}.spdx.json
+
+      - name: Attach SBOM attestation
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign attest --yes \
+            --predicate sbom-${{ matrix.folders }}.spdx.json \
+            --type spdxjson \
+            "${{ vars.DOCKERHUB_USERNAME }}/devboard-${{ matrix.folders }}@${{ steps.push.outputs.digest }}"
+
+      - name: Upload SBOM as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.folders }}
+          path: sbom-${{ matrix.folders }}.spdx.json

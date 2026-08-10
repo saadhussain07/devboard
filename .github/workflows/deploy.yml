@@ -1,28 +1,48 @@
-# Goal: To deploy the built images from CI Steps once the CI Worklow is Succeeded
-
+# Goal: Deploy the built images from CI once the CI workflow succeeded
+#
+# CHANGED from original: this used to `docker compose pull && up -d` on a
+# self-hosted VM — no k8s, no ArgoCD, no rollback, no deploy history beyond
+# GitHub's own run log. Now it bumps the image tag in the gitops repo;
+# ArgoCD (already watching that repo) auto-syncs it onto EKS via Argo
+# Rollouts canary. This single change is what actually closes checklist
+# items 1-3 (deploy frequency/history, MTTR/rollback, progressive delivery)
+# — none of those are possible while deploys go straight to a VM.
 name: CD
 
-on: 
-    workflow_call:
+on:
+  workflow_call:
 
 jobs:
-    deploy:
-        
-        runs-on: self-hosted
-        steps:
-            - name: Code Checkout
-              uses: actions/checkout@v7
+  update-gitops:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gitops repo
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ vars.REPO_ORG }}/devboard-gitops
+          token: ${{ secrets.GITOPS_REPO_PAT }}
+          path: gitops
 
-            - name: Copy Example Env to main env
-              run: cp .env.example .env
+      - name: Install yq
+        run: |
+          sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
 
-            - name: Docker Setup [Login]
-              uses: docker/login-action@v4
-              with:
-                username: ${{ vars.DOCKERHUB_USERNAME }}
-                password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Bump backend + frontend image tags
+        run: |
+          cd gitops/devboard
+          yq -i '.spec.template.spec.containers[0].image = "${{ vars.DOCKERHUB_USERNAME }}/devboard-backend:${{ github.sha }}"' rollout.yaml
+          yq -i '(.spec.template.spec.containers[] | select(.name == "devboard-frontend") | .image) = "${{ vars.DOCKERHUB_USERNAME }}/devboard-frontend:${{ github.sha }}"' frontend-deployment.yaml
 
-            - name: Deploy the containers with Docker Compose
-              run: |
-                docker compose pull
-                docker compose up -d
+      - name: Commit deploy event
+        run: |
+          cd gitops
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "deploy: devboard@${{ github.sha }}" \
+            -m "commit_sha=${{ github.sha }}" \
+            -m "triggered_by=${{ github.actor }}" \
+            -m "deployed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            || echo "nothing to commit"
+          git push
