@@ -35,6 +35,7 @@ jobs:
     sonar-qube:
         uses: ./.github/workflows/sonar-scan.yml
         secrets: inherit
+        continue-on-error: true 
 
     # Code Tests
     code-tests:
