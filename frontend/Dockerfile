@@ -14,7 +14,7 @@ COPY . .
 
 RUN npm run build
 RUN npm prune --omit=dev --legacy-peer-deps
-# Stage 2 — distroless runtime (minimal, secure)
+# Stage 2 — distroless runtime (minimal, secure) 
 FROM dhi.io/node:26
 
 WORKDIR /app
