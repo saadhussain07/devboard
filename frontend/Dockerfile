@@ -13,7 +13,7 @@ RUN npm list vite > /dev/null 2>&1 || npm install --no-save vite@5.4.11
 COPY . .
 
 RUN npm run build
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev --legacy-peer-deps
 # Stage 2 — distroless runtime (minimal, secure)
 FROM dhi.io/node:26
 
