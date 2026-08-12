@@ -69,6 +69,13 @@ func main() {
 	r := gin.Default()
 
 	r.GET("/health", func(c *gin.Context) {
+		// TEMP: for rollback demo — /health?fail=true returns 500 so we can
+		// feed bad signal into ingress metrics without breaking k8s's own
+		// readiness/liveness probes (which always call plain /health).
+		if c.Query("fail") == "true" {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "service": "backend"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "backend"})
 	})
 
