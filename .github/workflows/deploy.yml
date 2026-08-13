@@ -19,7 +19,7 @@ jobs:
         run: |
           cd gitops/devboard
           yq -i ".spec.template.spec.containers[0].image = \"${{ vars.DOCKERHUB_USERNAME }}/devboard-backend:${{ github.sha }}\"" rollout.yaml
-          yq -i "(.spec.template.spec.containers[] | select(.name == \"devboard-frontend\") | .image) = \"${{ vars.DOCKERHUB_USERNAME }}/devboard-frontend:${{ github.sha }}\"" frontend-deployment.yaml
+          yq -i "(.spec.template.spec.containers[] | select(.name == \"devboard-frontend\") | .image) = \"${{ vars.DOCKERHUB_USERNAME }}/devboard-frontend:${{ github.sha }}\"" frontend-deployment.yml
       - name: Commit deploy event
         run: |
           cd gitops
