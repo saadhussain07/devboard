@@ -30,6 +30,5 @@ jobs:
           git push
       - name: Push deploy metrics to Prometheus
         run: |
-          NOW=$(date -u +%s)
-          curl -sk --data "devboard_deploy_total 1" https://pushgateway.devboard.15-252-151-45.sslip.io/metrics/job/devboard_deploy/instance/${{ github.sha }}
+          printf "devboard_deploy_total 1\n" | curl -sk --data-binary @- https://pushgateway.devboard.15-252-151-45.sslip.io/metrics/job/devboard_deploy/instance/${{ github.sha }}
         continue-on-error: true
