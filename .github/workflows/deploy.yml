@@ -32,8 +32,8 @@ jobs:
         run: |
           cd gitops/devboard
           yq -i '.spec.template.spec.containers[0].image = "${{ vars.DOCKERHUB_USERNAME }}/devboard-backend:${{ github.sha }}"' rollout.yaml
-          yq -i '(.spec.template.spec.containers[] | select(.name == "devboard-frontend") | .image) = "${{ vars.DOCKERHUB_USERNAME }}/devboard-frontend:${{ github.sha }}"' frontend-deployment.yml
- 
+          yq -i '(.spec.template.spec.containers[] | select(.name == "devboard-frontend") | .image) = "${{ vars.DOCKERHUB_USERNAME }}/devboard-frontend:${{ github.sha }}"' frontend-deployment.yaml
+
       - name: Commit deploy event
         run: |
           cd gitops
@@ -46,3 +46,18 @@ jobs:
             -m "deployed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             || echo "nothing to commit"
           git push
+
+      - name: Push deploy metrics to Prometheus (DORA: deploy frequency + lead time)
+        run: |
+          COMMIT_TIME=$(date -u -d "${{ github.event.head_commit.timestamp }}" +%s 2>/dev/null || date -u +%s)
+          NOW=$(date -u +%s)
+          LEAD_TIME=$((NOW - COMMIT_TIME))
+          cat <<EOF | curl -sk --data-binary @- https://pushgateway.devboard.15-252-151-45.sslip.io/metrics/job/devboard_deploy/instance/${{ github.sha }}
+          # TYPE devboard_deploy_timestamp_seconds gauge
+          devboard_deploy_timestamp_seconds $NOW
+          # TYPE devboard_deploy_lead_time_seconds gauge
+          devboard_deploy_lead_time_seconds $LEAD_TIME
+          # TYPE devboard_deploy_total counter
+          devboard_deploy_total 1
+          EOF
+        continue-on-error: true # never block a real deploy over a metrics push
