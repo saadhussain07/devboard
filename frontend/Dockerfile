@@ -14,6 +14,9 @@ COPY . .
 
 RUN npm run build
 RUN npm prune --omit=dev --legacy-peer-deps
+
+RUN npm prune --omit=dev --legacy-peer-deps
+RUN npm install --no-save --legacy-peer-deps vite
 # Stage 2 — distroless runtime (minimal, secure) 
 FROM dhi.io/node:26
 
