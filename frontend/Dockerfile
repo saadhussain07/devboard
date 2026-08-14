@@ -15,8 +15,8 @@ COPY . .
 RUN npm run build
 RUN npm prune --omit=dev --legacy-peer-deps
 
-RUN npm prune --omit=dev --legacy-peer-deps
-RUN npm install --no-save --legacy-peer-deps vite
+RUN npm prune --omit=dev --legacy-peer-deps && \
+    npm install --no-save --legacy-peer-deps "vite@$(node -p "require('./package.json').devDependencies.vite")"
 # Stage 2 — distroless runtime (minimal, secure) 
 FROM dhi.io/node:26
 
