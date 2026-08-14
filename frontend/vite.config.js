@@ -21,6 +21,13 @@ export default defineConfig({
     },
   },
   preview: {
+    // Vite blocks arbitrary Host headers by default (DNS rebinding
+    // protection). Behind a public ingress with a real hostname, that
+    // hostname needs to be explicitly allowed or every request 403s.
+    allowedHosts: [
+      'devboard.15-252-151-45.sslip.io',
+      'api.devboard.15-252-151-45.sslip.io',
+    ],
     proxy: {
       '/api': {
         // `backend` is the compose service name; 8080 is its container port and
