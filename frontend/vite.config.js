@@ -21,23 +21,19 @@ export default defineConfig({
     },
   },
   preview: {
-    // Vite blocks arbitrary Host headers by default (DNS rebinding
-    // protection). Behind a public ingress with a real hostname, that
-    // hostname needs to be explicitly allowed or every request 403s.
-    allowedHosts: [
-      'devboard.15-252-151-45.sslip.io',
-      'api.devboard.15-252-151-45.sslip.io',
-    ],
-    proxy: {
-      '/api': {
-        // `backend` is the compose service name; 8080 is its container port and
-        // must match BACKEND_PORT in .env (the port the Go app listens on).
-        target: 'http://backend:8080',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
+  allowedHosts: [
+    'devboard.15-252-151-45.sslip.io',
+    'api.devboard.15-252-151-45.sslip.io',
+  ],
+  proxy: {
+    '/api': {
+      target: 'https://api.devboard.15-252-151-45.sslip.io',
+      changeOrigin: true,
+      secure: true, // set false only if the ingress uses a self-signed/staging cert
+      rewrite: (path) => path.replace(/^\/api/, ''),
     },
   },
+},
   test: {
     environment: 'jsdom',
     globals: true,
